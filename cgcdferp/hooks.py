@@ -5,6 +5,7 @@ app_description = "cgcdferp"
 app_email = "cgcdferp@gmail.com"
 app_license = "mit"
 
+
 # Apps
 # ------------------
 
@@ -43,7 +44,13 @@ app_license = "mit"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
+
+doctype_js = {
+    "Item" : "public/js/fixed_item.js",
+    "Material Request" : "public/js/check_budget.js",
+    "Purchase Order" : "/public/js/po_budget.js", 
+    "Purchase Invoice" : "public/js/pi_budget.js",
+}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
