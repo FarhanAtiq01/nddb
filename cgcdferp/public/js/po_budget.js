@@ -1,11 +1,12 @@
 frappe.ui.form.on("Purchase Order", {
     before_submit: function(frm) {
+        console.log("PO Budget Check")
 
         let accountTotals = {};
 
-        // Sum amounts per fixed_asset_account from items
+        // Sum amounts per custom_fixed_asset_amount from items
         (frm.doc.items || []).forEach(row => {
-            let acct = (row.fixed_asset_account || "").trim();
+            let acct = (row.custom_fixed_asset_amount || "").trim();
             let amt = parseFloat(row.amount || 0) || 0;
             if (!acct) return;
             accountTotals[acct] = (accountTotals[acct] || 0) + amt;

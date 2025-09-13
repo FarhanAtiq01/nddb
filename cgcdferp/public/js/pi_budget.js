@@ -1,11 +1,12 @@
 frappe.ui.form.on("Purchase Invoice", {
     before_submit: function(frm) {
+        console.log("PI Budget Check")
 
         let accountTotals = {};
 
-        // Sum amounts per fixed_asset_account from items
+        // Sum amounts per custom_fixed_asset_amount from items
         (frm.doc.items || []).forEach(row => {
-            let acct = (row.fixed_asset_account || "").trim();
+            let acct = (row.custom_fixed_asset_amount || "").trim();
             let amt = parseFloat(row.amount || 0) || 0;
             if (!acct) return;
             accountTotals[acct] = (accountTotals[acct] || 0) + amt;
@@ -79,8 +80,8 @@ frappe.ui.form.on("Purchase Invoice", {
                                     <br>It will be exceeded by <b>₨ ${exceeded.toFixed(2)}</b>. 
                                     <br><br>Total Expenses booked: 
                                     <br>Actual Expenses - ₨ ${actual.toFixed(2)} 
-                                    <br>Purchase Orders - ₨ ${requested.toFixed(2)} 
-                                    <br>Unbilled Orders - ₨ 0.00`
+                                    <br>Purchase Invoices - ₨ ${requested.toFixed(2)} 
+                                    <br>Unbilled Invoices - ₨ 0.00`
                                 ),
                                 indicator: "red"
                             });
