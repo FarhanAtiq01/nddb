@@ -10,8 +10,9 @@
   "budget_against",
   "company",
   "cost_center",
-  "naming_series",
   "project",
+  "naming_series",
+  "budget_against_value",
   "fiscal_year",
   "column_break_3",
   "monthly_distribution",
@@ -52,15 +53,6 @@
    "reqd": 1
   },
   {
-   "depends_on": "eval:doc.budget_against == 'Cost Center'",
-   "fieldname": "cost_center",
-   "fieldtype": "Link",
-   "in_global_search": 1,
-   "in_standard_filter": 1,
-   "label": "Cost Center",
-   "options": "Cost Center"
-  },
-  {
    "fieldname": "naming_series",
    "fieldtype": "Data",
    "hidden": 1,
@@ -69,14 +61,6 @@
    "print_hide": 1,
    "read_only": 1,
    "set_only_once": 1
-  },
-  {
-   "depends_on": "eval:doc.budget_against == 'Project'",
-   "fieldname": "project",
-   "fieldtype": "Link",
-   "in_standard_filter": 1,
-   "label": "Project",
-   "options": "Project"
   },
   {
    "fieldname": "fiscal_year",
@@ -202,12 +186,35 @@
    "label": "Budget Accounts",
    "options": "Budget Account",
    "reqd": 1
+  },
+  {
+   "fieldname": "budget_against_value",
+   "fieldtype": "Dynamic Link",
+   "label": "Budget Against value",
+   "options": "budget_against"
+  },
+  {
+   "depends_on": "eval:doc.budget_against == 'Cost Center'",
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "depends_on": "eval:doc.budget_against == 'Project'",
+   "fieldname": "project",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Project",
+   "options": "Project",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-09-11 12:10:15.178826",
+ "modified": "2025-09-17 03:30:23.184394",
  "modified_by": "Administrator",
  "module": "cgcdferp",
  "name": "Capital Budget",
