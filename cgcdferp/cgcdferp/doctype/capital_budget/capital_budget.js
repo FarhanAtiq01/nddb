@@ -7,12 +7,10 @@ frappe.ui.form.on("Capital Budget", {
 		frm.set_query("account", "accounts", function () {
 			return {
 				filters: {
-					company: frm.doc.company,
-					report_type: "Balance Sheet",
-                    // For Balance Sheet, only allow if custom_is_budgetable = 1
-                    is_budgetable: 1,
-					is_group: 0,
-				},
+                    company: frm.doc.company,
+                    report_type: ["in", ["Profit and Loss", "Balance Sheet"]],
+                    is_group: 0,
+                },
 			};
 		});
 

@@ -47,10 +47,10 @@ app_license = "mit"
 
 doctype_js = {
     "Item" : "public/js/fixed_item.js",
-    "Material Request" : "public/js/check_budget.js",
-    "Purchase Order" : "/public/js/po_budget.js", 
-    "Journal Entry" : "/public/js/jv_budget.js", 
-    "Purchase Invoice" : "public/js/pi_budget.js",
+    # "Material Request" : "public/js/check_budget.js",
+    # "Purchase Order" : "/public/js/po_budget.js", 
+    # "Journal Entry" : "/public/js/jv_budget.js", 
+    # "Purchase Invoice" : "public/js/pi_budget.js",
 }
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -152,6 +152,46 @@ doctype_js = {
 # 		"on_trash": "method"
 # 	}
 # }
+
+doc_events = {
+    # Purchasing flow
+    "Purchase Order": {
+        "before_submit": "cgcdferp.cgcdferp.asset_account_validator.validate_budget"
+    },
+    "Purchase Invoice": {
+        "before_submit": "cgcdferp.cgcdferp.asset_account_validator.validate_budget"
+    },
+    "Material Request": {
+        "before_submit": "cgcdferp.cgcdferp.asset_account_validator.validate_budget"
+    },
+    "Purchase Receipt": {
+        "before_submit": "cgcdferp.cgcdferp.asset_account_validator.validate_budget"
+    },
+
+    # Expenses flow
+    "Expense Claim": {
+        "before_submit": "cgcdferp.cgcdferp.asset_account_validator.validate_budget"
+    },
+    "Payment Entry": {
+        "before_submit": "cgcdferp.cgcdferp.asset_account_validator.validate_budget"
+    },
+    "Journal Entry": {
+        "before_submit": "cgcdferp.cgcdferp.asset_account_validator.validate_budget"
+    },
+    "Landed Cost Voucher": {
+        "before_submit": "cgcdferp.cgcdferp.asset_account_validator.validate_budget"
+    },
+    "Asset": {   # depreciation
+        "before_submit": "cgcdferp.cgcdferp.asset_account_validator.validate_budget"
+    },
+    "Stock Entry": {  # material issue
+        "before_submit": "cgcdferp.cgcdferp.asset_account_validator.validate_budget"
+    },
+    "Payroll Entry": {
+        "before_submit": "cgcdferp.cgcdferp.asset_account_validator.validate_budget"
+    },
+}
+
 
 # Scheduled Tasks
 # ---------------
