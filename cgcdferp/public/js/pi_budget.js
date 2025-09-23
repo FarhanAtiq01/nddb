@@ -111,7 +111,6 @@ frappe.ui.form.on("Purchase Invoice", {
         let accountTotals = {};
         let accountDimensions = {};
 
-        // Calculate totals and collect dimensions for current Purchase Invoice
         (frm.doc.items || []).forEach(row => {
             let acct = (row.custom_fixed_asset_amount || "").trim();
             let amt = parseFloat(row.amount || 0) || 0;
