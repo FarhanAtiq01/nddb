@@ -281,7 +281,7 @@ def validate_budget(doc, method=None):
     try:
         if doc.doctype not in ACCOUNT_FIELD_MAP:
             return
-            
+
         if doc.doctype == "Material Request" and getattr(doc, 'material_request_type', None) != "Purchase":
             return
 
@@ -291,10 +291,10 @@ def validate_budget(doc, method=None):
         item_cache = {}
         account_requests = []
 
+        # --- Collect row requests ---
         for row in rows:
             amt = flt(_row_get(row, "amount") or 0)
             item_code = _row_get(row, "item_code")
-            
             if not item_code or amt <= 0:
                 continue
 
@@ -307,23 +307,11 @@ def validate_budget(doc, method=None):
 
             is_asset = bool(item.get("is_fixed_asset"))
             
+            # pick account (same logic as before)
             acct = None
             if is_asset:
-                val = _row_get(row, "custom_fixed_asset_amount")
-                if val:
-                    acct = cstr(val).strip()
-                if not acct:
-                    val = _row_get(row, "fixed_asset_account")
-                    if val:
-                        acct = cstr(val).strip()
-                if not acct:
-                    for f in account_fields:
-                        if f not in ["custom_fixed_asset_amount", "fixed_asset_account"]:
-                            val = _row_get(row, f)
-                            if val:
-                                acct = cstr(val).strip()
-                                break
-            else:
+                acct = _row_get(row, "custom_fixed_asset_amount") or _row_get(row, "fixed_asset_account")
+            if not acct:
                 for f in account_fields:
                     val = _row_get(row, f)
                     if val:
@@ -355,10 +343,11 @@ def validate_budget(doc, method=None):
         if not company:
             return
 
+        # --- Build Capital Budget Map ---
         budgets = frappe.get_all(
             "Capital Budget",
             filters={"company": company, "docstatus": 1},
-            fields=["name", "budget_against", "budget_against_value"],
+            fields=["name", "budget_against", "budget_against_value", "department"],  # include department
             limit_page_length=1000,
         )
         
@@ -366,122 +355,74 @@ def validate_budget(doc, method=None):
             return
 
         budget_map = {}
-        
         for b in budgets:
             bd = frappe.get_doc("Capital Budget", b.name)
-            
             for acc in bd.accounts:
                 a = cstr(acc.get("account") or "").strip()
                 if not a:
                     continue
-                key = f"{a}|{bd.budget_against}|{bd.budget_against_value}"
-                budget_map.setdefault(key, {
-                    "amount": 0.0, 
-                    "budget_against": bd.budget_against, 
+                # key includes department if provided
+                key = f"{a}|{bd.budget_against}|{bd.budget_against_value}|{bd.department or ''}"
+                budget_map[key] = {
+                    "amount": sum(flt(x.get("budget_amount") or 0.0) for x in bd.accounts if x.account == a),
+                    "budget_against": bd.budget_against,
                     "budget_against_value": bd.budget_against_value,
+                    "department": bd.department,
                     "budget_name": bd.name
-                })
-                budget_map[key]["amount"] += flt(acc.get("budget_amount") or 0.0)
+                }
 
         currency = _doc_get(doc, "currency") or _company_currency(company) or "Currency"
 
-        # Group requests by account
-        account_groups = {}
+        # --- Validate each account request ---
         for req in account_requests:
-            acct = req["account"]
-            if acct not in account_groups:
-                account_groups[acct] = []
-            account_groups[acct].append(req)
+            acct, dims, req_amt = req["account"], req["dims"], req["amount"]
 
-        # Track budget summary for display
-        account_budget_summary = {}
-
-        # Process each account group with enhanced cascading logic
-        for acct, requests in account_groups.items():
-            # Find all matching budgets for this account
-            matching_budgets = []
+            matched_budget = None
             for key, bd in budget_map.items():
-                budget_account, budget_against, budget_against_value = key.split("|")
+                budget_account, budget_against, budget_against_value, budget_dept = key.split("|")
                 if budget_account != acct:
                     continue
 
-                # Check if any request matches this budget
-                has_matching_request = False
-                for req in requests:
-                    dims = req["dims"]
-                    field_name = (budget_against or "").lower().replace(" ", "_")
-                    dim_value = dims.get(field_name)
-                    
-                    if not budget_against_value or str(budget_against_value).lower() in ["null", "none", ""]:
-                        matched = True
-                    elif dim_value and str(dim_value).strip() == str(budget_against_value).strip():
-                        matched = True
+                # Match rules
+                if budget_against == "Project":
+                    if bd.department:
+                        # Match both project + department
+                        if dims.get("project") == budget_against_value and dims.get("department") == bd.department:
+                            matched_budget = bd
+                            break
                     else:
-                        matched = False
-
-                    if matched:
-                        has_matching_request = True
+                        # Only project
+                        if dims.get("project") == budget_against_value:
+                            matched_budget = bd
+                            break
+                elif budget_against == "Department":
+                    if dims.get("department") == budget_against_value:
+                        matched_budget = bd
                         break
 
-                if has_matching_request:
-                    matching_budgets.append((key, bd))
+            if not matched_budget:
+                continue  # no budget found, allow? or throw? (define as per business rule)
 
-            if not matching_budgets:
-                continue
+            # --- Compare with budget amount ---
+            used_amount = frappe.db.sql("""
+                SELECT SUM(amount) FROM `tab{0}`
+                WHERE company=%s AND account=%s AND docstatus=1
+            """.format(doc.doctype), (company, acct))[0][0] or 0.0
 
-            # Calculate current budget utilization with cascading logic
-            budget_utilization = calculate_budget_utilization_with_cascading(
-                acct, matching_budgets, company, getattr(doc, 'name', None), doc.doctype
-            )
-
-            # Calculate total amount for this account
-            total_account_amount = sum(req["amount"] for req in requests)
-            dims = requests[0]["dims"]  # Use first request's dimensions
-            
-            # Allocate current amount across available budgets
-            allocations, excess_amount = allocate_amount_to_budgets_with_utilization(
-                total_account_amount, budget_utilization, dims
-            )
-            
-            if excess_amount > 0:
-                # Create detailed error message
-                budget_details = []
-                for budget_key, util in budget_utilization.items():
-                    budget_details.append(
-                        f"<b>{util['budget_info']['budget_against']}: {util['budget_info']['budget_against_value']}</b><br>"
-                        f"  Budget: {frappe.utils.fmt_money(util['budgeted_amount'], currency=currency)}<br>"
-                        f"  Used: {frappe.utils.fmt_money(util['allocated_amount'], currency=currency)}<br>"
-                        f"  Available: {frappe.utils.fmt_money(util['available_amount'], currency=currency)}"
-                    )
-                
-                budget_breakdown = "<br><br>".join(budget_details)
-                
+            total_used = used_amount + req_amt
+            if total_used > matched_budget["amount"]:
                 frappe.throw(
                     title=_("Capital Budget Exceeded"),
-                    msg=_(
-                        f"🚨 Capital Budget for Account <b>{acct}</b> exceeded in <b>{doc.doctype}</b>!<br><br>"
-                        f"<b>Request Details:</b><br>"
-                        f"Current Document Amount: {frappe.utils.fmt_money(total_account_amount, currency=currency)}<br>"
-                        f"Amount that cannot be accommodated: <b>{frappe.utils.fmt_money(excess_amount, currency=currency)}</b><br><br>"
-                        f"<b>Budget Status for {doc.doctype} (considering previous {doc.doctype} transactions only):</b><br>"
-                        f"{budget_breakdown}<br><br>"
-                        f"<b>Submission blocked due to insufficient budget.</b>"
-                    ),
+                    msg=(
+                        f"🚨 Capital Budget for Account <b>{acct}</b> exceeded!<br><br>"
+                        f"Budget Name: {matched_budget['budget_name']}<br>"
+                        f"Budget Against: {matched_budget['budget_against']} - {matched_budget['budget_against_value']}<br>"
+                        f"Department: {matched_budget.get('department') or 'N/A'}<br>"
+                        f"Budget Amount: {frappe.utils.fmt_money(matched_budget['amount'], currency=currency)}<br>"
+                        f"Used + Current: {frappe.utils.fmt_money(total_used, currency=currency)}"
+                    )
                 )
-            else:
-                # Store budget summary for display after successful validation
-                account_budget_summary[acct] = []
-                for allocation in allocations:
-                    account_budget_summary[acct].append({
-                        "budget_key": allocation["budget_key"],
-                        "final_utilization": allocation["utilization"],
-                        "current_allocation": allocation["allocated_amount"]
-                    })
 
-        # Show budget summary after successful validation
-        if account_budget_summary:
-            show_budget_summary(account_budget_summary, currency, doc.doctype)
-        
     except frappe.ValidationError:
         raise
     except Exception:
