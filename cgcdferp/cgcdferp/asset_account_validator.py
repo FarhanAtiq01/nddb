@@ -404,7 +404,12 @@ def validate_budget(doc, method=None):
                 )
                 continue
             
-            # Show which budget matched
+            # Calculate utilization for this specific budget
+            utilization = calculate_budget_utilization(
+                acct, budget_key, budget_info, company, getattr(doc, 'name', None), doc.doctype
+            )
+            
+            # Show which budget matched with details
             _, budget_against, budget_against_value, department = budget_key.split("|")
             match_info = f"<b>✅ Matched Budget Entry:</b><br>"
             match_info += f"Account: <b>{acct}</b><br>"
@@ -413,20 +418,16 @@ def validate_budget(doc, method=None):
                 match_info += f"Secondary Dimension - Department: <b>{department}</b><br>"
             else:
                 match_info += f"Secondary Dimension: <b>Not Defined</b><br>"
-            match_info += f"<br>Transaction Dimensions:<br>"
-            match_info += f"Project: {dims.get('project')}<br>"
-            match_info += f"Department: {dims.get('department')}<br>"
-            match_info += f"Cost Center: {dims.get('cost_center')}"
+            match_info += f"<br><b>Budget Details:</b><br>"
+            match_info += f"Budget Amount: {frappe.utils.fmt_money(utilization['budgeted_amount'], currency=currency)}<br>"
+            match_info += f"Already Used: {frappe.utils.fmt_money(utilization['allocated_amount'], currency=currency)}<br>"
+            match_info += f"Available: {frappe.utils.fmt_money(utilization['available_amount'], currency=currency)}<br>"
+            match_info += f"Current MR Amount: {frappe.utils.fmt_money(total_account_amount, currency=currency)}<br>"
             
             frappe.msgprint(
                 match_info,
                 title="Budget Check - Match Found",
-                indicator="green"
-            )
-            
-            # Calculate utilization for this specific budget
-            utilization = calculate_budget_utilization(
-                acct, budget_key, budget_info, company, getattr(doc, 'name', None), doc.doctype
+                indicator="blue"
             )
             
             # Check if current amount exceeds available budget
