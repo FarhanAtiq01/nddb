@@ -430,30 +430,31 @@ def validate_budget(doc, method=None):
                 indicator="blue"
             )
             
-            # Check if current amount exceeds available budget
+            # CRITICAL: Check if current amount exceeds available budget - BLOCK SUBMISSION
             if total_account_amount > utilization["available_amount"]:
                 excess_amount = total_account_amount - utilization["available_amount"]
                 
                 _, budget_against, budget_against_value, budget_department = budget_key.split("|")
                 
-                dimension_info = f"<b>Primary - {budget_against}: {budget_against_value}</b><br>"
+                dimension_info = f"Primary Dimension - {budget_against}: <b>{budget_against_value}</b>"
                 if budget_department and str(budget_department).lower() not in ["null", "none", ""]:
-                    dimension_info += f"<b>Secondary - Department: {budget_department}</b><br>"
+                    dimension_info += f"<br>Secondary Dimension - Department: <b>{budget_department}</b>"
                 
+                # THROW ERROR - STOP SUBMISSION
                 frappe.throw(
-                    title=_("Capital Budget Exceeded"),
+                    title=_("❌ Capital Budget Exceeded"),
                     msg=_(
-                        f"🚨 Capital Budget for Account <b>{acct}</b> exceeded in <b>{doc.doctype}</b>!<br><br>"
-                        f"<b>Matching Budget Entry:</b><br>"
-                        f"{dimension_info}<br>"
-                        f"<b>Request Details:</b><br>"
-                        f"Current Document Amount: {frappe.utils.fmt_money(total_account_amount, currency=currency)}<br>"
-                        f"Amount that cannot be accommodated: <b>{frappe.utils.fmt_money(excess_amount, currency=currency)}</b><br><br>"
-                        f"<b>Budget Status (considering previous {doc.doctype} transactions only):</b><br>"
-                        f"Budget Amount: {frappe.utils.fmt_money(utilization['budgeted_amount'], currency=currency)}<br>"
+                        f"<b>Budget Exceeded! Submission Blocked.</b><br><br>"
+                        f"Account: <b>{acct}</b><br>"
+                        f"{dimension_info}<br><br>"
+                        f"<b>Budget Details:</b><br>"
+                        f"Total Budget: {frappe.utils.fmt_money(utilization['budgeted_amount'], currency=currency)}<br>"
                         f"Already Used: {frappe.utils.fmt_money(utilization['allocated_amount'], currency=currency)}<br>"
-                        f"Available: {frappe.utils.fmt_money(utilization['available_amount'], currency=currency)}<br><br>"
-                        f"<b>Submission blocked due to insufficient budget.</b>"
+                        f"Available Budget: {frappe.utils.fmt_money(utilization['available_amount'], currency=currency)}<br><br>"
+                        f"<b>Current {doc.doctype}:</b><br>"
+                        f"Requested Amount: <b>{frappe.utils.fmt_money(total_account_amount, currency=currency)}</b><br>"
+                        f"Excess Amount: <b style='color: red;'>{frappe.utils.fmt_money(excess_amount, currency=currency)}</b><br><br>"
+                        f"<b>⛔ You cannot submit this document. Please reduce the amount or increase the budget.</b>"
                     ),
                 )
             else:
