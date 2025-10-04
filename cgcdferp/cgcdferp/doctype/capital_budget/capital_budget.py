@@ -59,13 +59,40 @@ class CapitalBudget(Document):
 		project: DF.Link | None
 	# end: auto-generated types
 
+	# def validate(self):
+	# 	if not self.get(frappe.scrub(self.budget_against)):
+	# 		frappe.throw(_("{0} is mandatory").format(self.budget_against))
+	# 	self.validate_duplicate()
+	# 	self.validate_accounts()
+	# 	self.set_null_value()
+	# 	self.validate_applicable_for()
+
 	def validate(self):
+		# dynamically fetch allowed dimensions
+		allowed_dimensions = ["Cost Center", "Project"]
+		custom_dimensions = frappe.get_all(
+			"Accounting Dimension",
+			filters={"disabled": 0},
+			pluck="document_type"
+		)
+		allowed_dimensions.extend(custom_dimensions)
+
+		# if user selected something invalid, stop it
+		if self.budget_against not in allowed_dimensions:
+			frappe.throw(
+				_("Budget Against cannot be '{0}'. It should be one of {1}")
+				.format(self.budget_against, ", ".join(allowed_dimensions))
+			)
+
+		# normal validations
 		if not self.get(frappe.scrub(self.budget_against)):
 			frappe.throw(_("{0} is mandatory").format(self.budget_against))
+
 		self.validate_duplicate()
 		self.validate_accounts()
 		self.set_null_value()
 		self.validate_applicable_for()
+
 
 	def validate_duplicate(self):
 		budget_against_field = frappe.scrub(self.budget_against)
