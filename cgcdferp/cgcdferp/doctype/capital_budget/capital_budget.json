@@ -40,7 +40,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Budget Against",
-   "options": "\nCost Center\nProject",
+   "options": "\nCost Center\nProject\nDepartment",
    "reqd": 1
   },
   {
