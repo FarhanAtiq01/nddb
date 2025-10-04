@@ -169,8 +169,8 @@ class CapitalBudget(Document):
 # 		):
 # 			self.applicable_on_booking_actual_expenses = 1
 
-# 	def before_naming(self):
-# 		self.naming_series = f"{{{frappe.scrub(self.budget_against)}}}./.{self.fiscal_year}/.###"
+	def before_naming(self):
+		self.naming_series = f"{{{frappe.scrub(self.budget_against)}}}./.{self.fiscal_year}/.###"
 
 
 # def validate_expense_against_capital_budget(args, expense_amount=0):
