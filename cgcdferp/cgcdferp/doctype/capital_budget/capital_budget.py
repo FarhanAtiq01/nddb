@@ -69,30 +69,7 @@ class CapitalBudget(Document):
 		self.validate_applicable_for()
 
 	def validate_duplicate(self):
-		budget_against_field = frappe.scrub(self.budget_against)
-		budget_against = self.get(budget_against_field)
-
-		accounts = [d.account for d in self.accounts] or []
-		existing_budget = frappe.db.sql(
-			"""
-			select
-				cb.name, ba.account from `tabCapital Budget` cb, `tabBudget Account` ba
-			where
-				ba.parent = cb.name and cb.docstatus < 2 and cb.company = {} and {}={} and
-				cb.fiscal_year={} and cb.name != {} and ba.account in ({}) """.format(
-				"%s", budget_against_field, "%s", "%s", "%s", ",".join(["%s"] * len(accounts))
-			),
-			(self.company, budget_against, self.fiscal_year, self.name, *tuple(accounts)),
-			as_dict=1,
-		)
-
-		for d in existing_budget:
-			frappe.throw(
-				_(
-					"Another Capital Budget record '{0}' already exists against {1} '{2}' and account '{3}' for fiscal year {4}"
-				).format(d.name, self.budget_against, budget_against, d.account, self.fiscal_year),
-				DuplicateCapitalBudgetError,
-			)
+		pass
 
 	def validate_accounts(self):
 		account_list = []
