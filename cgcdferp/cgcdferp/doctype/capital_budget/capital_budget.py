@@ -101,7 +101,7 @@ class CapitalBudget(Document):
 			self.department = None
 		elif self.budget_against == "Project":
 			self.cost_center = None
-			self.department = None
+			# self.department = None
 		elif self.budget_against == "Department":
 			self.cost_center = None
 			self.project = None
