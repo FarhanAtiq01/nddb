@@ -43,32 +43,51 @@ def _company_currency(company):
     return cur
 
 def match_budget_dimensions(transaction_dims, budget_against, budget_against_value, budget_department):
-    """Match transaction dimensions with budget dimensions"""
+    """Match transaction dimensions with budget dimensions
+    
+    Logic:
+    - If budget_against = "Department", then budget_against_value IS the department (no secondary)
+    - If budget_against = "Project/Cost Center/etc", then budget_department is the secondary filter
+    """
     primary_field = (budget_against or "").lower().replace(" ", "_")
     primary_value = transaction_dims.get(primary_field)
     
     primary_match = False
+    primary_score = 0
+    
+    # Check primary dimension match
     if not budget_against_value or str(budget_against_value).lower() in ["null", "none", ""]:
+        # Budget has no specific value for primary dimension (acts as wildcard)
         primary_match = True
+        primary_score = 1  # Low score for wildcard match
     elif primary_value and str(primary_value).strip() == str(budget_against_value).strip():
+        # Exact match on primary dimension
         primary_match = True
+        primary_score = 10  # High score for exact match
     
     if not primary_match:
         return False, 0
     
-    if budget_department and str(budget_department).lower() not in ["null", "none", ""]:
-        transaction_dept = transaction_dims.get("department")
-        if transaction_dept and str(transaction_dept).strip() == str(budget_department).strip():
-            return True, 2
-        else:
-            return False, 0
-    else:
-        return True, 1
+    # Check secondary dimension (department) - ONLY if budget_against is NOT "Department"
+    dept_score = 0
+    if budget_against and budget_against.lower() != "department":
+        # Department acts as secondary filter only when primary is NOT department
+        if budget_department and str(budget_department).lower() not in ["null", "none", ""]:
+            transaction_dept = transaction_dims.get("department")
+            if transaction_dept and str(transaction_dept).strip() == str(budget_department).strip():
+                dept_score = 2  # Additional score for department match
+            else:
+                return False, 0  # Department specified but doesn't match
+    
+    return True, primary_score + dept_score
 
 def find_matching_budget(account, transaction_dims, budget_map):
     """Find best matching Capital Budget entry"""
     best_match = None
     best_score = 0
+    
+    # Debug logging
+    matches_found = []
     
     for key, budget_info in budget_map.items():
         budget_account, budget_against, budget_against_value, budget_department = key.split("|")
@@ -82,9 +101,30 @@ def find_matching_budget(account, transaction_dims, budget_map):
             budget_department
         )
         
-        if matched and score > best_score:
-            best_match = key
-            best_score = score
+        if matched:
+            matches_found.append({
+                "key": key,
+                "score": score,
+                "budget_against": budget_against,
+                "budget_against_value": budget_against_value,
+                "department": budget_department,
+                "amount": budget_info["amount"]
+            })
+            
+            if score > best_score:
+                best_match = key
+                best_score = score
+    
+    # Debug: Log all matches (commented out for production, uncomment for debugging)
+    # if matches_found:
+    #     frappe.log_error(
+    #         title="Budget Matching Debug",
+    #         message=f"Account: {account}\n"
+    #                f"Transaction Dims: {transaction_dims}\n"
+    #                f"Matches Found: {len(matches_found)}\n"
+    #                f"Details: {frappe.as_json(matches_found, indent=2)}\n"
+    #                f"Best Match: {best_match} (Score: {best_score})"
+    #     )
     
     if best_match:
         return best_match, budget_map[best_match]
@@ -279,15 +319,17 @@ def validate_budget(doc, method=None):
         for b in budgets:
             bd = frappe.get_doc("Capital Budget", b.name)
             department = b.get("department") or ""
+            budget_against_value = bd.budget_against_value or ""
+            
             for acc in bd.accounts:
                 a = cstr(acc.get("account") or "").strip()
                 if not a:
                     continue
-                key = f"{a}|{bd.budget_against}|{bd.budget_against_value}|{department}"
+                key = f"{a}|{bd.budget_against}|{budget_against_value}|{department}"
                 budget_map.setdefault(key, {
                     "amount": 0.0, 
                     "budget_against": bd.budget_against, 
-                    "budget_against_value": bd.budget_against_value,
+                    "budget_against_value": budget_against_value,
                     "department": department,
                     "budget_name": bd.name
                 })
@@ -316,13 +358,21 @@ def validate_budget(doc, method=None):
             # ✅ Strict budget check
             if (utilization["allocated_amount"] + total_account_amount) > utilization["budgeted_amount"]:
                 excess_amount = (utilization["allocated_amount"] + total_account_amount) - utilization["budgeted_amount"]
+                
+                # Build dimension display based on budget type
+                if budget_info['budget_against'] and budget_info['budget_against'].lower() == "department":
+                    dim_display = f"Department: {budget_info['budget_against_value']}"
+                else:
+                    dim_display = f"{budget_info['budget_against']}: {budget_info['budget_against_value'] or 'Any'}"
+                    if budget_info['department']:
+                        dim_display += f" | Department: {budget_info['department']}"
+                
                 frappe.throw(
                     title=_("❌ Capital Budget Exceeded"),
                     msg=_(
                         f"<b>Budget Exceeded! Submission Blocked.</b><br><br>"
                         f"Account: <b>{acct}</b><br>"
-                        f"Primary: {budget_info['budget_against']} - {budget_info['budget_against_value']}<br>"
-                        f"Secondary Department: {budget_info['department'] or 'Not Defined'}<br><br>"
+                        f"Dimensions: {dim_display}<br><br>"
                         f"<b>Budget:</b> {frappe.utils.fmt_money(utilization['budgeted_amount'], currency=currency)}<br>"
                         f"<b>Already Used:</b> {frappe.utils.fmt_money(utilization['allocated_amount'], currency=currency)}<br>"
                         f"<b>Requested Now:</b> {frappe.utils.fmt_money(total_account_amount, currency=currency)}<br>"
